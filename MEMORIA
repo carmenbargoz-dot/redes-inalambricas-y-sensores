@@ -1,0 +1,149 @@
+# MEMORIA DE PRÁCTICAS: PRACTICA 1
+
+Asignatura: Redes inalámbricas y sensores
+
+
+## 1. Introducción y objetivos
+
+En esta memoria se analizan los ejercicios realizados durante la practica 1. Ambos trabajan la programación de aplicaciones mediante procesos y eventos en Contiki-NG. 
+
+Los objetivos son comprender la estructura de un proceso, utilizar temporizadores sin realizar esperas activas, intercambiar eventos entre procesos, controlar salidas mediante la biblioteca de LED e implementar el uso de sensores proprocionados como es el sensor de temperatura.
+
+
+## 2. Fundamentos utilizados
+
+Las aplicaciones declaran sus procesos mediante `PROCESS` y definen su ejecución con `PROCESS_THREAD`. La macro `AUTOSTART_PROCESSES` identifica los procesos que deben iniciarse al arrancar la aplicación. Cada implementación queda delimitada por `PROCESS_BEGIN()` y `PROCESS_END()`.
+
+Los temporizadores de tipo `struct etimer` permiten esperar intervalos expresados en unidades del reloj del sistema. `CLOCK_SECOND` representa las unidades correspondientes a un segundo. `etimer_set()` configura el temporizador, `etimer_expired()` comprueba su vencimiento y `etimer_reset()` lo rearma tomando como referencia el vencimiento anterior.
+
+Las variables que deben conservar su valor entre esperas se declaran como `static`. Esto resulta relevante porque los procesos utilizan protothreads y no deben depender de variables locales automáticas para mantener su estado entre cesiones de control.
+
+
+## 3. Ejercicio 2: Hello Word periódico y con contador
+
+### 3.1. Objetivo y estructura
+
+El archivo implementa dos procesos: `periodic_process`, encargado de generar una activación cada cinco segundos, y `hello_world_process`, encargado de imprimir un mensaje y actualizar un contador. Ambos se incluyen en `AUTOSTART_PROCESSES`.
+
+Separar estas tareas permite distinguir la generación de la señal temporal de la acción ejecutada cuando llega dicha señal.
+
+### 3.2. Generación del evento periódico
+
+El proceso periódico declara un temporizador estático y lo configura mediante:
+
+```c
+etimer_set(&timer, CLOCK_SECOND * 5);
+```
+
+Dentro de un bucle infinito, espera a que el temporizador venza y envía al proceso de impresión el evento `PROCESS_EVENT_CONTINUE`:
+
+```c
+PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+process_post(&hello_world_process, PROCESS_EVENT_CONTINUE, NULL);
+etimer_reset(&timer);
+```
+
+`process_post()` publica el evento para el siguiente porceso con un argumento `NULL` que indica que no se adjuntan datos. Después se rearma el temporizador para repetir la operación.
+
+### 3.3. Impresión y evolución del contador
+
+El proceso de impresión mantiene la variable `static int contador = 0`. Su bucle espera específicamente el evento de continuación:
+
+```c
+PROCESS_WAIT_EVENT_UNTIL(ev == PROCESS_EVENT_CONTINUE);
+printf("Hello, world! (number %d)\n", contador);
+contador++;
+if(contador > 20) {
+  contador = 0;
+}
+```
+
+El valor se muestra antes de incrementarse. Por tanto, la secuencia abarca desde 0 hasta 20, ambos incluidos.
+
+### 3.4. Resultado esperado
+
+La primera impresión se espera aproximadamente cinco segundos después de configurar el temporizador. Las primeras líneas son:
+
+```text
+Hello, world! (number 0)
+Hello, world! (number 1)
+Hello, world! (number 2)
+...
+Hello, world! (number 20)
+Hello, world! (number 0)
+```
+
+El ejercicio muestra una coordinación sencilla por eventos: un proceso establece cuándo actuar y otro mantiene el estado y realiza la impresión. 
+
+
+## 4. Ejercicio 3: Arranque retardado y parpadeo intercalados de dos LED
+
+### 4.1. Objetivo y estructura
+
+El archivo utiliza la biblioteca `dev/leds.h` y define tres procesos. La nueva estructura busca esperar cinco segundos desde el arranque antes de iniciar dos tareas independientes de parpadeo.
+
+| Proceso | Función |
+| --- | --- |
+| `timer_process` | Esperar cinco segundos e iniciar los procesos de los LED. |
+| `parpadeo_1_process` | Conmutar `LEDS_LED1` cada dos segundos desde su inicio. |
+| `parpadeo_2_process` | Conmutar `LEDS_LED2` cada tres segundos desde su inicio. |
+
+Solo el proceso coordinador se inicia automáticamente:
+
+```c
+AUTOSTART_PROCESSES(&timer_process);
+```
+
+Los otros dos quedan declarados, pero sus temporizadores no comienzan a contar hasta que se inician sus procesos. 
+
+### 4.2. Arranque retardado
+
+`timer_process` configura un temporizador con `etimer_set(&timer, CLOCK_SECOND * 5)` y espera su vencimiento mediante `PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer))`. A continuación, el archivo contiene estas llamadas:
+
+```c
+process_start(&parpadeo_1_process, NULL);
+process_start(&parpadeo_2_process, NULL);
+```
+
+La intención es iniciar ambos procesos al terminar la espera inicial.
+
+### 4.3. Funcionamiento de los procesos de parpadeo
+
+Al iniciarse, el primer proceso configura un temporizador de dos segundos y el segundo uno de tres segundos. S
+
+El bucle del primer LED contiene:
+
+```c
+PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer));
+leds_single_toggle(LEDS_LED1);
+etimer_reset(&timer);
+```
+
+El segundo utiliza la misma estructura con `LEDS_LED2`. La función `leds_single_toggle()` invierte el estado actual del LED y `etimer_reset()` rearma el temporizador para mantener la repetición.
+
+Las variables de tipo `struct etimer` son estáticas, de modo que conservan su estado entre las esperas. Cada proceso dispone de su propio temporizador y progresa de forma independiente.
+
+### 4.4. Secuencia temporal esperada
+
+Los intervalos entre conmutaciones son de dos y tres segundos. Las conmutaciones de ambos LED coinciden nominalmente cada seis segundos a partir de los once segundos.
+
+
+## 5. Compilación y comprobación
+
+Los siguientes comandos ilustran la compilación desde cada carpeta de ejercicio, sustituyendo `/ruta/a/contiki-ng` por la ubicación real:
+
+```bash
+# Desde p1-eje2
+make CONTIKI=/ruta/a/contiki-ng CONTIKI_PROJECT=hello-world-ej2p1 TARGET=nrf52840 BOARD=dongle
+
+# Desde p1-eje3
+make CONTIKI=/ruta/a/contiki-ng CONTIKI_PROJECT=BLINK TARGET=nrf52840 BOARD=dongle
+```
+
+La validación del ejercicio 2 debe comprobar el intervalo aproximado entre mensajes y la transición de 20 a 0. La del ejercicio 3 debe observar el inicio de los procesos a los cinco segundos, las primeras conmutaciones aproximadamente a los siete y ocho segundos y los intervalos posteriores de cada LED. 
+
+
+## 5. Archivos de referencia
+
+- `p1-eje2/hello-world-ej2p1.c`: implementación del mensaje periódico y el contador.
+- `p1-eje3/BLINK.c`: implementación del control de los dos LED.

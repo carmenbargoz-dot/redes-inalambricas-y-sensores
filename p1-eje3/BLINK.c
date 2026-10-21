@@ -44,7 +44,7 @@
 PROCESS(parpadeo_1_process, "conmuta el led 1");
 PROCESS(parpadeo_2_process, "conmuta el led 2"); /*DECLARACION DEL PROCESO Y DESCRIPCION */
 PROCESS(timer_process, "envia los eventros");
-AUTOSTART_PROCESSES(&timer_process, &parpadeo_1_process, &parpadeo_2_process); /*INCA QUE PROCESOS DEBEN INICIARSE CUANDO ARRANCA LA APLICACION */
+AUTOSTART_PROCESSES(&timer_process); /*INCA QUE PROCESOS DEBEN INICIARSE CUANDO ARRANCA LA APLICACION */
 /*---------------------------------------------------------------------------*/
 
 
@@ -58,7 +58,6 @@ PROCESS_THREAD(parpadeo_1_process, ev, data) /*IMPLEMENTACION DEL PROCESO (NOMBR
   /* Setup a periodic timer that expires after 5 seconds. */
   etimer_set(&timer, CLOCK_SECOND * 2); /* 3 representa un intervalo de 3 segundos. */
   
-  PROCESS_WAIT_EVENT(); /*ESPERA A QUE UN PROCESO SEA PUBLICADO EN EL EVENTO*/
   while(1) {
   
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer)); /*ESPERA PARA ESCRIBIR*/
@@ -79,7 +78,6 @@ PROCESS_THREAD(parpadeo_2_process, ev, data)
   /* Setup a periodic timer that expires after 5 seconds. */
   etimer_set(&timer, CLOCK_SECOND * 3); /* 3 representa un intervalo de 3 segundos. */
   
-  PROCESS_WAIT_EVENT(); /*ESPERA A QUE UN PROCESO SEA PUBLICADO EN EL EVENTO*/
   while(1) {
   
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer)); /*ESPERA PARA ESCRIBIR*/
@@ -104,8 +102,8 @@ PROCESS_THREAD(timer_process, ev, data)
   
     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer)); /*ESPERA PARA ESCRIBIR*/
   
-    process_poll(&parpadeo_1_process); /*llama a un proceso*/
-    process_poll(&parpadeo_2_process); /*llama a un proceso*/
+    process_start(&parpadeo_1_process, NULL); /*llama a un proceso*/
+    process_start(&parpadeo_2_process, NULL); /*llama a un proceso*/
     
   }
 
