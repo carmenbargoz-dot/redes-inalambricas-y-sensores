@@ -1,13 +1,13 @@
-# MEMORIA DE PRÁCTICAS: PRACTICA 1
+# MEMORIA DE PRÁCTICAS: PRÁCTICA 1
 
 Asignatura: Redes inalámbricas y sensores
 
 
 ## 1. Introducción y objetivos
 
-En esta memoria se analizan los ejercicios realizados durante la practica 1. Ambos trabajan la programación de aplicaciones mediante procesos y eventos en Contiki-NG. 
+Esta memoria recoge los ejercicios 1, 2 y 3 de la práctica 1. En primer lugar, se identifican las rutas del soporte del microcontrolador y de los controladores de radio y almacenamiento en Contiki-NG. A continuación, se estudia la programación de aplicaciones mediante procesos, eventos y temporizadores.
 
-Los objetivos son comprender la estructura de un proceso, utilizar temporizadores sin realizar esperas activas, intercambiar eventos entre procesos, controlar salidas mediante la biblioteca de LED e implementar el uso de sensores proprocionados como es el sensor de temperatura.
+Los objetivos son localizar los archivos relacionados con el hardware, distinguir las interfaces de los controladores específicos, comprender la estructura de un proceso, utilizar temporizadores sin realizar esperas activas, intercambiar eventos entre procesos y controlar salidas mediante la biblioteca de LED.
 
 
 ## 2. Fundamentos utilizados
@@ -19,15 +19,62 @@ Los temporizadores de tipo `struct etimer` permiten esperar intervalos expresado
 Las variables que deben conservar su valor entre esperas se declaran como `static`. Esto resulta relevante porque los procesos utilizan protothreads y no deben depender de variables locales automáticas para mantener su estado entre cesiones de control.
 
 
-## 3. Ejercicio 2: Hello Word periódico y con contador
+## 3. Ejercicio 1: Localización de rutas
 
-### 3.1. Objetivo y estructura
+### 3.1. Objetivo
+
+El ejercicio consiste en localizar dentro del árbol de Contiki-NG los archivos relacionados con el microcontrolador nRF52840, el transceptor de radio, el almacenamiento externo y la memoria flash interna. 
+
+### 3.2. Microcontrolador
+
+El soporte específico del nRF52840 se encuentra en:
+
+```text
+arch/cpu/nrf52840/
+```
+
+La captura muestra los archivos como `nrf52840-conf.h` y `nrf52840-def.h`. 
+
+### 3.3. Transceptor de radio
+
+El transceptor está integrado en el nRF52840. Los archivos identificados son:
+
+- **Fuente del controlador:** `arch/cpu/nrf52840/rf/nrf52840-ieee.c`.
+- **Cabecera del hardware:** `arch/cpu/nrf52840/lib/nrf52-sdk/modules/nrfx/hal/nrf_radio.h`.
+- **Interfaz de radio de Contiki:** `os/dev/radio.h`.
+
+### 3.4. Almacenamiento externo
+
+La captura de la memoria externa sitúa sus archivos en:
+
+```text
+arch/dev/storage/ext-flash/
+```
+
+En esa carpeta aparecen:
+
+- **Fuente:** `arch/dev/storage/ext-flash/ext-flash.c`.
+- **Cabecera:** `arch/dev/storage/ext-flash/ext-flash.h`.
+
+### 3.5. Almacenamiento interno
+
+El almacenamiento interno corresponde a la memoria flash del microcontrolador, gestionada mediante el controlador NVMC. Sus archivos son:
+
+- **Fuente:** `arch/cpu/nrf52840/lib/nrf52-sdk/modules/nrfx/drivers/src/nrfx_nvmc.c`.
+- **Cabecera:** `arch/cpu/nrf52840/lib/nrf52-sdk/modules/nrfx/drivers/include/nrfx_nvmc.h`.
+
+Estos archivos pertenecen al controlador de Nordic para el acceso a la memoria no volátil interna. 
+
+
+## 4. Ejercicio 2: Hello world periódico y con contador
+
+### 4.1. Objetivo y estructura
 
 El archivo implementa dos procesos: `periodic_process`, encargado de generar una activación cada cinco segundos, y `hello_world_process`, encargado de imprimir un mensaje y actualizar un contador. Ambos se incluyen en `AUTOSTART_PROCESSES`.
 
 Separar estas tareas permite distinguir la generación de la señal temporal de la acción ejecutada cuando llega dicha señal.
 
-### 3.2. Generación del evento periódico
+### 4.2. Generación del evento periódico
 
 El proceso periódico declara un temporizador estático y lo configura mediante:
 
@@ -43,9 +90,9 @@ process_post(&hello_world_process, PROCESS_EVENT_CONTINUE, NULL);
 etimer_reset(&timer);
 ```
 
-`process_post()` publica el evento para el siguiente porceso con un argumento `NULL` que indica que no se adjuntan datos. Después se rearma el temporizador para repetir la operación.
+`process_post()` publica el evento para el proceso destinatario con un argumento `NULL` que indica que no se adjuntan datos. Después se rearma el temporizador para repetir la operación.
 
-### 3.3. Impresión y evolución del contador
+### 4.3. Impresión y evolución del contador
 
 El proceso de impresión mantiene la variable `static int contador = 0`. Su bucle espera específicamente el evento de continuación:
 
@@ -60,7 +107,7 @@ if(contador > 20) {
 
 El valor se muestra antes de incrementarse. Por tanto, la secuencia abarca desde 0 hasta 20, ambos incluidos.
 
-### 3.4. Resultado esperado
+### 4.4. Resultado esperado
 
 La primera impresión se espera aproximadamente cinco segundos después de configurar el temporizador. Las primeras líneas son:
 
@@ -76,9 +123,9 @@ Hello, world! (number 0)
 El ejercicio muestra una coordinación sencilla por eventos: un proceso establece cuándo actuar y otro mantiene el estado y realiza la impresión. 
 
 
-## 4. Ejercicio 3: Arranque retardado y parpadeo intercalados de dos LED
+## 5. Ejercicio 3: Arranque retardado y parpadeo de dos LED
 
-### 4.1. Objetivo y estructura
+### 5.1. Objetivo y estructura
 
 El archivo utiliza la biblioteca `dev/leds.h` y define tres procesos. La nueva estructura busca esperar cinco segundos desde el arranque antes de iniciar dos tareas independientes de parpadeo.
 
@@ -96,7 +143,7 @@ AUTOSTART_PROCESSES(&timer_process);
 
 Los otros dos quedan declarados, pero sus temporizadores no comienzan a contar hasta que se inician sus procesos. 
 
-### 4.2. Arranque retardado
+### 5.2. Arranque retardado
 
 `timer_process` configura un temporizador con `etimer_set(&timer, CLOCK_SECOND * 5)` y espera su vencimiento mediante `PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&timer))`. A continuación, el archivo contiene estas llamadas:
 
@@ -105,11 +152,11 @@ process_start(&parpadeo_1_process, NULL);
 process_start(&parpadeo_2_process, NULL);
 ```
 
-La intención es iniciar ambos procesos al terminar la espera inicial.
+Estas llamadas inician ambos procesos al terminar la espera inicial. El proceso coordinador conserva su bucle sin rearmar el temporizador ni finalizar; por ello, ante eventos posteriores puede volver a ejecutar las llamadas de inicio. Esto no reinicia los procesos de parpadeo mientras ya estén en ejecución.
 
-### 4.3. Funcionamiento de los procesos de parpadeo
+### 5.3. Funcionamiento de los procesos de parpadeo
 
-Al iniciarse, el primer proceso configura un temporizador de dos segundos y el segundo uno de tres segundos. S
+Al iniciarse, el primer proceso configura un temporizador de dos segundos y el segundo uno de tres segundos.
 
 El bucle del primer LED contiene:
 
@@ -123,14 +170,14 @@ El segundo utiliza la misma estructura con `LEDS_LED2`. La función `leds_single
 
 Las variables de tipo `struct etimer` son estáticas, de modo que conservan su estado entre las esperas. Cada proceso dispone de su propio temporizador y progresa de forma independiente.
 
-### 4.4. Secuencia temporal esperada
+### 5.4. Secuencia temporal esperada
 
 Los intervalos entre conmutaciones son de dos y tres segundos. Las conmutaciones de ambos LED coinciden nominalmente cada seis segundos a partir de los once segundos.
 
 
-## 5. Compilación y comprobación
+## 6. Compilación y comprobación
 
-Los siguientes comandos ilustran la compilación desde cada carpeta de ejercicio, sustituyendo `/ruta/a/contiki-ng` por la ubicación real:
+El ejercicio 1 es una identificación de rutas y no requiere compilar una aplicación. Para los ejercicios 2 y 3, los siguientes comandos ilustran la compilación desde cada carpeta de ejercicio, sustituyendo `/ruta/a/contiki-ng` por la ubicación real:
 
 ```bash
 # Desde p1-eje2
@@ -143,7 +190,8 @@ make CONTIKI=/ruta/a/contiki-ng CONTIKI_PROJECT=BLINK TARGET=nrf52840 BOARD=dong
 La validación del ejercicio 2 debe comprobar el intervalo aproximado entre mensajes y la transición de 20 a 0. La del ejercicio 3 debe observar el inicio de los procesos a los cinco segundos, las primeras conmutaciones aproximadamente a los siete y ocho segundos y los intervalos posteriores de cada LED. 
 
 
-## 5. Archivos de referencia
+## 7. Archivos de referencia
 
+- `p1-eje1/Untitled 1.odt`: capturas de las rutas del microcontrolador y de la memoria externa.
 - `p1-eje2/hello-world-ej2p1.c`: implementación del mensaje periódico y el contador.
 - `p1-eje3/BLINK.c`: implementación del control de los dos LED.
